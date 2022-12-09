@@ -12,6 +12,7 @@ H = [[int(x) for x in line] for line in lines]
 # pprint(H)
 width = len(H[0])
 height = len(H)
+print(f'{width}x{height}')
 
 visibility = [[0] * width for _ in H]
 
@@ -48,7 +49,7 @@ for x in range(width):
 print(sum(sum(v > 0 for v in vline) for vline in visibility))
 
 #           Left, Up, Right, Down
-scenic = [[[None, None, None, None] for _ in H[0]] for _ in H]
+scenic = [[[   0,  0,     0,    0] for _ in H[0]] for _ in H]
 
 for y in range(height):
     for x in range(width):
@@ -87,9 +88,35 @@ for y in range(height-1, -1, -1):
             h_right = H[y][x+1]
             scenic[y][x][2] = 1 + (scenic[y][x+1][2] if h_right < h else 0)
 
-pprint(H)
-pprint(scenic)
+# pprint(H)
+# pprint(scenic)
 scenic_scores = [[reduce(mul, scenic_views, 1) for scenic_views in scenic_line] for scenic_line in scenic]
-pprint(scenic_scores)
+# pprint(scenic_scores)
 print(max(max(ssline) for ssline in scenic_scores))
+
+# Brute Force
+
+max_score = 0
+for y in range(height):
+    for x in range(width):
+        sscore = 1
+        for dy, dx in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+            viewed = 0
+
+            iy, ix = y + dy, x + dx
+
+            while iy >= 0 and iy < height and ix >= 0 and ix < width:
+                viewed = viewed + 1
+
+                if H[iy][ix] >= H[y][x]:
+                    break
+
+                iy, ix = iy + dy, ix + dx
+
+            sscore = sscore * viewed
+        
+        if sscore > max_score:
+            max_score = sscore
+
+print(max_score)
     
