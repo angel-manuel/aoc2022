@@ -42,28 +42,70 @@ if DEBUG:
         'max_d': max_d,
     })
 
-def imposible_at_y(y):
-    global data, min_sx, max_sx, max_d
+def merge_segments(s1, s2):
+    s1a, s1b = s1
+    s2a, s2b = s2
 
-    nb_count = 0
-    for x in range(min_sx - max_d, max_sx + max_d + 1):
-        pos = (x, y)
-        for bs in data:
-            sd = manhattan(pos, bs['spos'])
-
-            if DEBUG:
-                print({
-                    'pos': pos,
-                    'spos': bs['spos'],
-                    'sd': sd,
-                    'bs_dist': bs['distance'],
-                })
-
-            if sd <= max_d and sd <= bs['distance'] and pos not in bposes:
-                nb_count += 1
-                break
+    if s1a > s2a:
+        s1a, s1b, s2a, s2b = s2a, s2b, s1a, s1b
     
-    return nb_count
+    if s2a <= s1b:
+        return (s1a, max(s2b, s1b))
+    
+    return None
 
-print(imposible_at_y(10))
-print(imposible_at_y(2000000))
+def imp_seg_at_y(y):
+    segments = []
+
+    for bs in data:
+        spos = bs['spos']
+        dist = bs['distance']
+
+        xdist = dist - abs(spos[1] - y)
+
+        if xdist >= 0:
+            xpos = spos[0]
+            segments.append((xpos - xdist, xpos + xdist))
+    
+    segments.sort()
+
+    if not segments:
+        return segments
+
+    msegments = []
+    accseg = segments[0]
+    for i in range(1, len(segments)):
+        newaccseg = merge_segments(accseg, segments[i])
+
+        if newaccseg:
+            accseg = newaccseg
+        else:
+            msegments.append(accseg)
+            accseg = segments[i]
+    
+    if accseg:
+        msegments.append(accseg)
+    
+    return msegments
+
+def count_from_imp_seg(y, segments):
+    bxs = set(bs['bpos'][0] for bs in data if bs['bpos'][1] == y)
+
+    ret = 0
+    for segment in segments:
+        sa, sb = segment
+
+        ret += sb - sa + 1
+
+        for bx in bxs:
+            if sa <= bx and bx <= sb:
+                ret -= 1
+    
+    return ret
+
+
+# pprint(imp_seg_at_y(10))
+# pprint(imp_seg_at_y(2000000))
+
+print(count_from_imp_seg(10, imp_seg_at_y(10)))
+print(count_from_imp_seg(2000000, imp_seg_at_y(2000000)))
