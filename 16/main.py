@@ -4,6 +4,8 @@ import sys
 import re
 from pprint import pprint
 
+from multiprocessing import Pool
+
 
 with open(sys.argv[1]) as f:
     lines = [line.strip() for line in f.readlines() if line.strip()]
@@ -86,7 +88,7 @@ def solve(t=30, visited=[], pos='AA'):
     if not t:
         return 0, []
 
-    valves_by_flow = [valve for _, valve in sorted([(vflow, valve) for valve, vflow, _ in data if vflow], reverse=True)]
+    valves_by_flow = [valve for valve, vflow, _ in data if vflow]
 
     max_total = 0
     best_valve = None
@@ -119,112 +121,41 @@ def solve(t=30, visited=[], pos='AA'):
 
 print(solve())
 
-def solve2(t=26, visited=[], pos1='AA', pos2='AA', going1=None, going2=None, opened=[]):
-    if not t:
-        return 0, []
-
-    if DEBUG:
-        pprint({
-            't': t,
-            'visited': visited,
-            'pos1': pos1,
-            'pos2': pos2,
-            'going1': going1,
-            'going2': going2,
-        })
-
-    if going1 and going2:
-        tgt1, t1 = going1 
-        tgt2, t2 = going2
-
-        if t1 == t2:
-            if t1 + 1 <= t:
-                t -= t1 + 1
-
-                extra_opened = []
-                pressure_release = 0
-                if tgt1 not in opened:
-                    extra_opened.append(tgt1)
-                    pressure_release += mapped_data[tgt1][1]*t
-
-                if tgt2 not in opened:
-                    extra_opened.append(tgt2)
-                    pressure_release += mapped_data[tgt2][1]*t
-
-                subpressure, path = solve2(t, visited, tgt1, tgt2, None, None, opened + extra_opened)
-
-                return pressure_release + subpressure, path + extra_opened
-        elif t1 < t2:
-            if t1 + 1 <= t:
-                t -= t1 + 1
-
-                pressure_release = 0
-                extra_opened = []
-                if tgt1 not in opened:
-                    pressure_release = mapped_data[tgt1][1]*t
-                    extra_opened = [tgt1]
-
-                subpressure, path = solve2(t, visited, tgt1, pos2, None, (tgt2, t2 - (t1 + 1)), opened + extra_opened)
-
-                return pressure_release + subpressure, path + extra_opened
-        elif t1 > t2:
-            if t2 + 1 <= t:
-                t -= t2 + 1
-
-                pressure_release = 0
-                extra_opened = []
-                if tgt2 not in opened:
-                    pressure_release = mapped_data[tgt2][1]*t
-                    extra_opened = [tgt2]
-
-                subpressure, path = solve2(t, visited, pos1, tgt2, (tgt1, t1 - (t2 + 1)), None, opened + extra_opened)
-
-                return pressure_release + subpressure, path + extra_opened
-        
-        return 0, []
+def partitions2(s):
+    if len(s) == 1:
+        return [([], s), (s, [])]
     
-    valves_by_flow = [valve for _, valve in sorted([(vflow, valve) for valve, vflow, _ in data if vflow and valve not in visited], reverse=True)]
+    first, *rest = s
+    subparts = partitions2(rest)
+    ret = []
 
-    if DEBUG and not valves_by_flow:
-        pprint({
-            't': t,
-            'visited': visited,
-            'pos1': pos1,
-            'pos2': pos2,
-            'going1': going1,
-            'going2': going2,
-        })
-
-    max_total = 0
-    best_path = []
-    if not going1:
-        for valve in valves_by_flow + [pos1]:
-            d = D[valve_index[pos1]][valve_index[valve]]
-
-            if not d:
-                if going2:
-                    d = t + 10
-                else:
-                    continue
-
-            total, path = solve2(t, visited + [valve], pos1, pos2, (valve, d), going2, opened)
-
-            if total > max_total:
-                max_total = total
-                best_path = path
-    elif not going2:
-        for valve in valves_by_flow + [pos2]:
-            d = D[valve_index[pos2]][valve_index[valve]]
-
-            if not d:
-                d = t + 10
-
-            total, path = solve2(t, visited + [valve], pos1, pos2, going1, (valve, d), opened)
-
-            if total > max_total:
-                max_total = total
-                best_path = path
+    for part in subparts:
+        a, b = part
+        ret.append((a + [first], b))
+        ret.append((a, b + [first]))
     
-    return max_total, best_path
+    return ret
+
+
+def solve_wrapper(part):
+    a, b = part
+
+    s1, path1 = solve(t=26, visited=a)
+    s2, path2 = solve(t=26, visited=b)
+
+    return s1 + s2, (path1, path2)
+
+
+def solve2():
+    valves = [valve for _, valve in sorted([(vflow, valve) for valve, vflow, _ in data if vflow], reverse=True)]
+
+    partitions = partitions2(valves)
+
+    with Pool(16) as p:
+        sols = p.map(solve_wrapper, partitions, chunksize=64)
+
+    # sols = map(solve_wrapper, partitions)
+    
+    return max(sols, key=lambda sol: sol[0])
 
 print(solve2())
